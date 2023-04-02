@@ -23,6 +23,7 @@ CONFIGS = [
     ["take_cover.cfg", 2],  # 7
     ["deathmatch.cfg", 20],  # 8
     ["health_gathering_supreme.cfg", 3],  # 9
+    ["hell_sound.cfg", 3], # 10
 ]
 
 
@@ -37,13 +38,13 @@ class VizdoomEnv(gym.Env):
         Note that the observation will be a list with the screen buffer as the first element. If no kwargs are
         provided (or depth=False and labels=False) the observation will be of type np.ndarray.
         """
-
+        print(kwargs)
         # parse keyword arguments
         self.depth = kwargs.get("depth", False)
         self.labels = kwargs.get("labels", False)
         self.position = kwargs.get("position", False)
         self.health = kwargs.get("health", False)
-
+        self.audio = kwargs.get("audio", True)
         # init game
         self.game = vzd.DoomGame()
         self.game.set_screen_resolution(vzd.ScreenResolution.RES_640X480)
@@ -60,6 +61,8 @@ class VizdoomEnv(gym.Env):
             self.game.add_available_game_variable(vzd.GameVariable.ANGLE)
         if self.health:
             self.game.add_available_game_variable(vzd.GameVariable.HEALTH)
+        self.frame_skip = 4
+        self.game.set_audio_buffer_size(self.frame_skip)
         self.game.init()
         self.state = None
         self.viewer = None
@@ -67,45 +70,62 @@ class VizdoomEnv(gym.Env):
         self.action_space = spaces.Discrete(CONFIGS[level][1])
 
         # specify observation space(s)
+        # list_spaces = {
+
+        # }
         list_spaces: List[gym.Space] = [
             spaces.Box(
                 0,
                 255,
                 (
-                    self.game.get_screen_height(),
                     self.game.get_screen_width(),
                     self.game.get_screen_channels(),
+                    self.game.get_screen_height(),
                 ),
                 dtype=np.uint8,
             )
         ]
-        if self.depth:
+        # if self.depth:
+        #     list_spaces.append(
+        #         spaces.Box(
+        #             0,
+        #             255,
+        #             (self.game.get_screen_height(), self.game.get_screen_width(),),
+        #             dtype=np.uint8,
+        #         )
+        #     )
+        # if self.labels:
+        #     list_spaces.append(
+        #         spaces.Box(
+        #             0,
+        #             255,
+        #             (self.game.get_screen_height(), self.game.get_screen_width(),),
+        #             dtype=np.uint8,
+        #         )
+        #     )
+        # if self.position:
+        #     list_spaces.append(spaces.Box(-np.Inf, np.Inf, (4, 1)))
+        # if self.health:
+        #     list_spaces.append(spaces.Box(0, np.Inf, (1, 1)))
+        if self.audio:
+            sampling_rate = self.game.get_audio_sampling_rate()
+            aud_len = int((1260 / (44100/sampling_rate))) * self.frame_skip
+            sound_high = [[32767,32767]] * aud_len
+            sound_low = [[-32767,-32767]] * aud_len
+            
             list_spaces.append(
-                spaces.Box(
-                    0,
-                    255,
-                    (self.game.get_screen_height(), self.game.get_screen_width(),),
-                    dtype=np.uint8,
-                )
+                gym.spaces.Box(
+                    low=np.array(sound_low, dtype=np.int16), 
+                    high=np.array(sound_high, dtype=np.int16),
+                    dtype=np.int16,
+                    # shape=
+                )   
             )
-        if self.labels:
-            list_spaces.append(
-                spaces.Box(
-                    0,
-                    255,
-                    (self.game.get_screen_height(), self.game.get_screen_width(),),
-                    dtype=np.uint8,
-                )
-            )
-        if self.position:
-            list_spaces.append(spaces.Box(-np.Inf, np.Inf, (4, 1)))
-        if self.health:
-            list_spaces.append(spaces.Box(0, np.Inf, (1, 1)))
         if len(list_spaces) == 1:
             self.observation_space = list_spaces[0]
         else:
-            self.observation_space = spaces.Tuple(list_spaces)
-
+            self.observation_space = spaces.Dict({"rgb":list_spaces[0], "audio":list_spaces[1]})
+            
     def step(self, action):
         # convert action to vizdoom action space (one hot)
         act = np.zeros(self.action_space.n)
@@ -120,7 +140,7 @@ class VizdoomEnv(gym.Env):
 
         return self.__collect_observations(), reward, done, info
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         self.game.new_episode()
         self.state = self.game.get_state()
 
@@ -130,6 +150,8 @@ class VizdoomEnv(gym.Env):
         observation = []
         if self.state is not None:
             observation.append(np.transpose(self.state.screen_buffer, (1, 2, 0)))
+            if self.audio:
+                observation.append(self.state.audio_buffer.astype('int16'))
             if self.depth:
                 observation.append(self.state.depth_buffer)
             if self.labels:
@@ -156,6 +178,11 @@ class VizdoomEnv(gym.Env):
         # if there is only one observation, return obs as array to sustain compatibility
         if len(observation) == 1:
             observation = observation[0]
+    
+        print(observation[0].shape, observation[1].shape)
+        observation = {"rgb":observation[0], "audio":observation[1]}
+        
+    
         return observation
 
     def render(self, mode="human"):

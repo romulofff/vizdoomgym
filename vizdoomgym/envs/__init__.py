@@ -10,4 +10,5 @@ from vizdoomgym.envs.vizdoom_env_definitions import (
     VizdoomTakeCover,
     VizdoomDeathmatch,
     VizdoomHealthGatheringSupreme,
+    VizdoomMusic
 )

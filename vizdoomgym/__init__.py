@@ -49,3 +49,8 @@ register(
     id='VizdoomHealthGatheringSupreme-v0',
     entry_point='vizdoomgym.envs:VizdoomHealthGatheringSupreme'
 )
+
+register(
+    id='VizdoomMusic-v0',
+    entry_point='vizdoomgym.envs:VizdoomMusic'
+)

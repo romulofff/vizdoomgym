@@ -49,3 +49,7 @@ class VizdoomPredictPosition(VizdoomEnv):
 class VizdoomTakeCover(VizdoomEnv):
     def __init__(self, **kwargs):
         super(VizdoomTakeCover, self).__init__(7, **kwargs)
+
+class VizdoomMusic(VizdoomEnv):
+    def __init__(self, **kwargs):
+        super(VizdoomMusic, self).__init__(10, **kwargs)
